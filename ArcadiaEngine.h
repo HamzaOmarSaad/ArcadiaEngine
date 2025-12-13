@@ -5,8 +5,14 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <utility>
 
 using namespace std;
+
+struct PlayerData {
+  int PlayerID;
+  string Name;
+}
 
 // PART A: DATA STRUCTURES
 class PlayerTable {

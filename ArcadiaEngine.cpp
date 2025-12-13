@@ -13,6 +13,7 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <optional>
 
 using namespace std;
 
@@ -20,27 +21,77 @@ using namespace std;
 // PART A: DATA STRUCTURES (Concrete Implementations)
 // =========================================================
 
+struct PlayerData {
+  int PlayerID;
+  string Name;
+}
+
+enum class SlotState {
+  Empty,
+  Occupied,
+  Deleted
+};
+
+const int TableSize = 101;
+const int R = 97;
+const double A = 0.6180339887;
+
 // --- 1. PlayerTable (Double Hashing) ---
 
 class ConcretePlayerTable : public PlayerTable {
 private:
-    // TODO: Define your data structures here
-    // Hint: You'll need a hash table with double hashing collision resolution
+  vector<optional<PlayerData>> table;
+  vector<SlotState> state;
+
+  int H1Multiplication(int key) const {
+    double fracPart = (double)key * A
+    fracPart = fracPart - floor(fracPart);
+    return (int)floor(fracPart * TableSize);
+  }
+
+  int H2Step (int key) const {
+    return R - (key % R);
+  }
 
 public:
     ConcretePlayerTable() {
-        // TODO: Initialize your hash table
+        table.resize(TableSize);
+        state.resize(TableSize, slotState::Empty);
     }
 
     void insert(int playerID, string name) override {
-        // TODO: Implement double hashing insert
-        // Remember to handle collisions using h1(key) + i * h2(key)
+        PlayerData playerData = {playerID, name};
+        int key = playerData.PlayerID;
+        int initialIndex = H1Multiplication(key);
+        int step = H2Step(key);
+        for (int i = 0; i < table.size(); i++) {
+          int index = (initialIndex + i * step) % TableSize;
+          if (state[index] == SlotState::Empty || state[index] == SlotState::Deleted) {
+            table[index] = playerData;
+            state[index] = SlotState::Occupied;
+            return;
+          }
+          if (state[index] == SlotState::Occupied && table[index]->PlayerID == key) {
+            table[index] = playerData;
+            return;
+          }
+        }
     }
 
     string search(int playerID) override {
-        // TODO: Implement double hashing search
-        // Return "" if player not found
-        return "";
+        int key = playerData.PlayerID;
+        int initialIndex = H1Multiplication(key);
+        int step = H2Step(key);
+        for (int i = 0; i < table.size(); i++) {
+          int index = (initialIndex + i * step) % TableSize;
+          if (state[index] == SlotState::Empty) {
+            return;
+          }
+          if (state[index] == SlotState::Occupied && table[index]->PlayerID == key) {
+            return table[index]->Name;
+          }
+        }
+        return "Player Not Found\n";
     }
 };
 
