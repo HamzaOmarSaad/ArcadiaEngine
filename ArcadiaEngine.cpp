@@ -513,26 +513,117 @@ public:
 // PART B: INVENTORY SYSTEM (Dynamic Programming)
 // =========================================================
 
+
+
 int InventorySystem::optimizeLootSplit(int n, vector<int>& coins) {
-    // TODO: Implement partition problem using DP
-    // Goal: Minimize |sum(subset1) - sum(subset2)|
-    // Hint: Use subset sum DP to find closest sum to total/2
-    return 0;
+    if (n == 0) {
+        return 0;
+    }
+
+
+    int totalSum = accumulate(coins.begin(), coins.end(), 0);
+
+
+    int targetSum = totalSum / 2;
+
+
+    vector<bool> dp(targetSum + 1, false);
+    dp[0] = true;
+
+
+    for (int coin : coins) {
+
+        for (int j = targetSum; j >= coin; --j) {
+            dp[j] = dp[j] || dp[j - coin];
+        }
+    }
+
+
+    int sum1 = 0;
+    for (int j = targetSum; j >= 0; --j) {
+        if (dp[j]) {
+            sum1 = j;
+            break;
+        }
+    }
+
+
+    int sum2 = totalSum - sum1;
+
+    return sum2 - sum1;
 }
 
 int InventorySystem::maximizeCarryValue(int capacity, vector<pair<int, int>>& items) {
-    // TODO: Implement 0/1 Knapsack using DP
-    // items = {weight, value} pairs
-    // Return maximum value achievable within capacity
-    return 0;
+    if (capacity == 0 || items.empty()) {
+        return 0;
+    }
+
+
+    vector<int> dp(capacity + 1, 0);
+
+    for (const auto& item : items) {
+        int weight = item.first;
+        int value = item.second;
+
+
+        for (int w = capacity; w >= weight; --w) {
+
+            int value_exclude = dp[w];
+
+
+            int value_include = value + dp[w - weight];
+
+
+            dp[w] = max(value_exclude, value_include);
+        }
+    }
+
+
+    return dp[capacity];
 }
 
 long long InventorySystem::countStringPossibilities(string s) {
-    // TODO: Implement string decoding DP
-    // Rules: "uu" can be decoded as "w" or "uu"
-    //        "nn" can be decoded as "m" or "nn"
-    // Count total possible decodings
-    return 0;
+    int N = s.length();
+    if (N == 0) {
+        return 1;
+    }
+
+
+    long long MOD = 1e9 + 7;
+
+
+    vector<long long> dp(N + 1, 0);
+
+
+    dp[0] = 1;
+
+
+    for (int i = 1; i <= N; ++i) {
+
+        dp[i] = dp[i-1];
+
+
+        if (i >= 2) {
+
+            char c1 = s[i-2];
+            char c2 = s[i-1];
+
+
+            if (c1 == 'u' && c2 == 'u') {
+
+                dp[i] = (dp[i] + dp[i-2]) % MOD;
+            }
+
+            else if (c1 == 'n' && c2 == 'n') {
+
+                dp[i] = (dp[i] + dp[i-2]) % MOD;
+            }
+        }
+
+        dp[i] = dp[i] % MOD;
+    }
+
+    return dp[N];
 }
 
 // =========================================================
