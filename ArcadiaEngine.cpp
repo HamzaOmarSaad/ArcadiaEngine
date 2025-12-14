@@ -14,6 +14,8 @@
 #include <map>
 #include <set>
 #include <optional>
+#include <random>
+#include <chrono>
 
 using namespace std;
 
@@ -24,7 +26,7 @@ using namespace std;
 struct PlayerData {
   int PlayerID;
   string Name;
-}
+};
 
 enum class SlotState {
   Empty,
@@ -95,30 +97,132 @@ public:
     }
 };
 
+
+const int MaxLevel = 16;
+const double P = 0.5;
+
+struct ScoreNode {
+  int PlayerID;
+  int score;
+  vector<ScoreNode*> forward;
+  ScoreNode(int id, int scr, int level) : PlayerID(id), score(scr) {
+    forward.resize(level + 1, nullptr);
+  }
+};
+
 // --- 2. Leaderboard (Skip List) ---
 
 class ConcreteLeaderboard : public Leaderboard {
 private:
-    // TODO: Define your skip list node structure and necessary variables
-    // Hint: You'll need nodes with multiple forward pointers
+  ScoreNode* head;
+  int level;
+  default_random_engine generator;
+  int randomLevel() {
+    int lvl = 0;
+    uniform_real_distribution<double> distribution(0.0, 1.0);
+    while (distribution(generator) < P && lvl < MaxLevel - 1) {
+      lvl++;
+    }
+    return lvl;
+  }
+
+    void findPath(int playerID, int score, vector<ScoreNode*>& update) {
+      ScoreNode* current = head;
+      for (int i = level; i >= 0; --i) {
+        while (current->forward[i] != nullptr) {
+          if (current->forward[i]->score > score) {
+            current = current->forward[i];
+          }
+          else if (current->forward[i]->score == score && current->forward[i]->playerID < playerID) {
+            current = current->forward[i];
+          }
+          else {
+            break;
+          }
+        }
+        update[i] = current;
+      }
+    }
+
+  ScoreNode* searchNode(int playerID) const {
+    ScoreNode* current = head->forward[0];
+    while (current != nullptr) {
+      if (current->playerID == playerID) {
+        return current;
+      }
+      current = current->forward[0];
+    }
+    return nullptr;
+  }
 
 public:
-    ConcreteLeaderboard() {
-        // TODO: Initialize your skip list
+    ConcreteLeaderboard() : level(0) {
+        generator.seed(chrono::system_clock::now().time_since_epoch().count());
+        head = new ScoreNode(-1, INT_MAX , MaxLevel);
+    }
+
+    ~ConcreteLeaderboard() {
+      ScoreNode* current = head->forward[0];
+      ScoreNode* next;
+      while (current != nullptr) {
+        next = current->forward[0];
+        delete current;
+        current = next;
+      }
+      delete head;
     }
 
     void addScore(int playerID, int score) override {
-        // TODO: Implement skip list insertion
-        // Remember to maintain descending order by score
+      removePlayer(playerID);
+      vector<ScoreNode*> update(MAX_LEVEL + 1);
+      findPath(playerID, score, update);
+      int new_level = randomLevel();
+      if (new_level > level) {
+        for (int i = level + 1; i <= new_level; ++i) {
+          update[i] = head;
+        }
+        level = new_level;
+      }
+      ScoreNode* newNode = new ScoreNode(playerID, score, new_level);
+      for (int i = 0; i <= new_level; ++i) {
+        newNode->forward[i] = update[i]->forward[i];
+        update[i]->forward[i] = newNode;
+      }
     }
 
     void removePlayer(int playerID) override {
-        // TODO: Implement skip list deletion
+      std::vector<ScoreNode*> update(MAX_LEVEL + 1, nullptr);
+      ScoreNode* nodeToDelete = nullptr;
+      ScoreNode* current = head;
+      ScoreNode* pred = head;
+      current = head->forward[0];
+      while (current != nullptr && current->playerID != playerID) {
+        pred = current;
+        current = current->forward[0];
+      }
+      nodeToDelete = current;
+      if (nodeToDelete != nullptr) {
+        findPath(nodeToDelete->playerID, nodeToDelete->score, update);
+        for (int i = 0; i <= level; ++i) {
+          if (update[i]->forward[i] == nodeToDelete) {
+            update[i]->forward[i] = nodeToDelete->forward[i];
+          }
+        }
+        delete nodeToDelete;
+        while (level > 0 && head->forward[level] == nullptr) {
+          level--;
+        }
+      }
     }
 
     vector<int> getTopN(int n) override {
-        // TODO: Return top N player IDs in descending score order
-        return {};
+      vector<int> topPlayers;
+      ScoreNode* current = head->forward[0];
+      for (int i = 0; i < n && current != nullptr; ++i) {
+        topPlayers.push_back(current->playerID);
+        current = current->forward[0];
+      }
+      return topPlayers;
     }
 };
 
