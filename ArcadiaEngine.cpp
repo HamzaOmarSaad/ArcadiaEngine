@@ -42,57 +42,63 @@ const double A = 0.6180339887;
 
 class ConcretePlayerTable : public PlayerTable {
 private:
-  vector<optional<PlayerData>> table;
-  vector<SlotState> state;
+    vector<optional<PlayerData>> table;
+    vector<SlotState> state;
 
-  int H1Multiplication(int key) const {
-    double fracPart = (double)key * A
-    fracPart = fracPart - floor(fracPart);
-    return (int)floor(fracPart * TableSize);
-  }
+    int H1(int key) const {
+        double frac = key * A;
+        frac = frac - floor(frac);
+        return (int)(frac * TableSize);
+    }
 
-  int H2Step (int key) const {
-    return R - (key % R);
-  }
+    int H2(int key) const {
+        return R - (key % R);
+    }
 
 public:
     ConcretePlayerTable() {
         table.resize(TableSize);
-        state.resize(TableSize, slotState::Empty);
+        state.resize(TableSize, SlotState::Empty);
     }
 
     void insert(int playerID, string name) override {
-        PlayerData playerData = {playerID, name};
-        int key = playerData.PlayerID;
-        int initialIndex = H1Multiplication(key);
-        int step = H2Step(key);
-        for (int i = 0; i < table.size(); i++) {
-          int index = (initialIndex + i * step) % TableSize;
-          if (state[index] == SlotState::Empty || state[index] == SlotState::Deleted) {
-            table[index] = playerData;
-            state[index] = SlotState::Occupied;
-            return;
-          }
-          if (state[index] == SlotState::Occupied && table[index]->PlayerID == key) {
-            table[index] = playerData;
-            return;
-          }
+        int index1 = H1(playerID);
+        int step = H2(playerID);
+
+        for (int i = 0; i < TableSize; i++) {
+            int idx = (index1 + i * step) % TableSize;
+
+            if (state[idx] == SlotState::Empty || state[idx] == SlotState::Deleted) {
+                table[idx] = PlayerData{playerID, name};
+                state[idx] = SlotState::Occupied;
+                return;
+            }
+
+            if (state[idx] == SlotState::Occupied &&
+                table[idx]->PlayerID == playerID) {
+                table[idx] = PlayerData{playerID, name}; // update
+                return;
+            }
         }
+
+        cout << "Error: Table is full\n";
     }
 
     string search(int playerID) override {
-        int key = playerData.PlayerID;
-        int initialIndex = H1Multiplication(key);
-        int step = H2Step(key);
-        for (int i = 0; i < table.size(); i++) {
-          int index = (initialIndex + i * step) % TableSize;
-          if (state[index] == SlotState::Empty) {
-            return;
-          }
-          if (state[index] == SlotState::Occupied && table[index]->PlayerID == key) {
-            return table[index]->Name;
-          }
+        int index1 = H1(playerID);
+        int step = H2(playerID);
+
+        for (int i = 0; i < TableSize; i++) {
+            int idx = (index1 + i * step) % TableSize;
+
+            if (state[idx] == SlotState::Empty)
+                return "Player Not Found\n";
+
+            if (state[idx] == SlotState::Occupied &&
+                table[idx]->PlayerID == playerID)
+                return table[idx]->Name;
         }
+
         return "Player Not Found\n";
     }
 };
@@ -114,138 +120,392 @@ struct ScoreNode {
 
 class ConcreteLeaderboard : public Leaderboard {
 private:
-  ScoreNode* head;
-  int level;
-  default_random_engine generator;
-  int randomLevel() {
-    int lvl = 0;
-    uniform_real_distribution<double> distribution(0.0, 1.0);
-    while (distribution(generator) < P && lvl < MaxLevel - 1) {
-      lvl++;
-    }
-    return lvl;
-  }
+    ScoreNode* head;
+    int currentLevel;
+    default_random_engine gen;
 
-    void findPath(int playerID, int score, vector<ScoreNode*>& update) {
-      ScoreNode* current = head;
-      for (int i = level; i >= 0; --i) {
-        while (current->forward[i] != nullptr) {
-          if (current->forward[i]->score > score) {
-            current = current->forward[i];
-          }
-          else if (current->forward[i]->score == score && current->forward[i]->playerID < playerID) {
-            current = current->forward[i];
-          }
-          else {
-            break;
-          }
-        }
-        update[i] = current;
-      }
+    int randomLevel() {
+        int lvl = 0;
+        uniform_real_distribution<double> dist(0.0, 1.0);
+        while (dist(gen) < P && lvl < MaxLevel - 1)
+            lvl++;
+        return lvl;
     }
 
-  ScoreNode* searchNode(int playerID) const {
-    ScoreNode* current = head->forward[0];
-    while (current != nullptr) {
-      if (current->playerID == playerID) {
-        return current;
-      }
-      current = current->forward[0];
+    // Order: score DESC, PlayerID ASC
+    bool goesBefore(int id1, int score1, int id2, int score2) {
+        if (score1 != score2)
+            return score1 > score2;
+        return id1 < id2;
     }
-    return nullptr;
-  }
 
 public:
-    ConcreteLeaderboard() : level(0) {
-        generator.seed(chrono::system_clock::now().time_since_epoch().count());
-        head = new ScoreNode(-1, INT_MAX , MaxLevel);
+    ConcreteLeaderboard() : currentLevel(0) {
+        gen.seed(chrono::steady_clock::now().time_since_epoch().count());
+        head = new ScoreNode(-1, INT_MAX, MaxLevel);
     }
 
     ~ConcreteLeaderboard() {
-      ScoreNode* current = head->forward[0];
-      ScoreNode* next;
-      while (current != nullptr) {
-        next = current->forward[0];
-        delete current;
-        current = next;
-      }
-      delete head;
+        ScoreNode* cur = head->forward[0];
+        while (cur) {
+            ScoreNode* nxt = cur->forward[0];
+            delete cur;
+            cur = nxt;
+        }
+        delete head;
     }
 
     void addScore(int playerID, int score) override {
-      removePlayer(playerID);
-      vector<ScoreNode*> update(MAX_LEVEL + 1);
-      findPath(playerID, score, update);
-      int new_level = randomLevel();
-      if (new_level > level) {
-        for (int i = level + 1; i <= new_level; ++i) {
-          update[i] = head;
+        vector<ScoreNode*> update(MaxLevel + 1);
+        ScoreNode* cur = head;
+
+        for (int i = currentLevel; i >= 0; i--) {
+            while (cur->forward[i] &&
+                   goesBefore(cur->forward[i]->PlayerID,
+                              cur->forward[i]->score,
+                              playerID, score)) {
+                cur = cur->forward[i];
+            }
+            update[i] = cur;
         }
-        level = new_level;
-      }
-      ScoreNode* newNode = new ScoreNode(playerID, score, new_level);
-      for (int i = 0; i <= new_level; ++i) {
-        newNode->forward[i] = update[i]->forward[i];
-        update[i]->forward[i] = newNode;
-      }
+
+        int lvl = randomLevel();
+        if (lvl > currentLevel) {
+            for (int i = currentLevel + 1; i <= lvl; i++)
+                update[i] = head;
+            currentLevel = lvl;
+        }
+
+        ScoreNode* node = new ScoreNode(playerID, score, lvl);
+        for (int i = 0; i <= lvl; i++) {
+            node->forward[i] = update[i]->forward[i];
+            update[i]->forward[i] = node;
+        }
     }
 
     void removePlayer(int playerID) override {
-      std::vector<ScoreNode*> update(MAX_LEVEL + 1, nullptr);
-      ScoreNode* nodeToDelete = nullptr;
-      ScoreNode* current = head;
-      ScoreNode* pred = head;
-      current = head->forward[0];
-      while (current != nullptr && current->playerID != playerID) {
-        pred = current;
-        current = current->forward[0];
-      }
-      nodeToDelete = current;
-      if (nodeToDelete != nullptr) {
-        findPath(nodeToDelete->playerID, nodeToDelete->score, update);
-        for (int i = 0; i <= level; ++i) {
-          if (update[i]->forward[i] == nodeToDelete) {
-            update[i]->forward[i] = nodeToDelete->forward[i];
-          }
+        // Allowed O(N) scan
+        ScoreNode* cur = head->forward[0];
+        int score = -1;
+
+        while (cur) {
+            if (cur->PlayerID == playerID) {
+                score = cur->score;
+                break;
+            }
+            cur = cur->forward[0];
         }
-        delete nodeToDelete;
-        while (level > 0 && head->forward[level] == nullptr) {
-          level--;
+
+        if (score == -1)
+            return;
+
+        vector<ScoreNode*> update(MaxLevel + 1);
+        cur = head;
+
+        for (int i = currentLevel; i >= 0; i--) {
+            while (cur->forward[i] &&
+                   goesBefore(cur->forward[i]->PlayerID,
+                              cur->forward[i]->score,
+                              playerID, score)) {
+                cur = cur->forward[i];
+            }
+            update[i] = cur;
         }
-      }
+
+        ScoreNode* target = cur->forward[0];
+        if (!target || target->PlayerID != playerID)
+            return;
+
+        for (int i = 0; i <= currentLevel; i++) {
+            if (update[i]->forward[i] == target)
+                update[i]->forward[i] = target->forward[i];
+        }
+
+        delete target;
+
+        while (currentLevel > 0 && head->forward[currentLevel] == nullptr)
+            currentLevel--;
     }
 
     vector<int> getTopN(int n) override {
-      vector<int> topPlayers;
-      ScoreNode* current = head->forward[0];
-      for (int i = 0; i < n && current != nullptr; ++i) {
-        topPlayers.push_back(current->playerID);
-        current = current->forward[0];
-      }
-      return topPlayers;
+        vector<int> result;
+        ScoreNode* cur = head->forward[0];
+
+        while (cur && n--) {
+            result.push_back(cur->PlayerID);
+            cur = cur->forward[0];
+        }
+        return result;
     }
 };
 
 // --- 3. AuctionTree (Red-Black Tree) ---
 
+enum class Color {
+  RED,
+  BLACK
+};
+
+struct ItemNode {
+    int itemID;
+    int price;
+    Color color;
+    ItemNode *left, *right, *parent;
+
+    ItemNode(int id = -1, int p = 0, Color c = Color::BLACK)
+        : itemID(id), price(p), color(c),
+          left(nullptr), right(nullptr), parent(nullptr) {}
+};
+
 class ConcreteAuctionTree : public AuctionTree {
 private:
-    // TODO: Define your Red-Black Tree node structure
-    // Hint: Each node needs: id, price, color, left, right, parent pointers
+    ItemNode* root;
+    ItemNode* NIL;
+
+    bool lessThan(int price1, int id1, int price2, int id2) const {
+        if (price1 != price2) return price1 < price2;
+        return id1 < id2;
+    }
+
+    void leftRotate(ItemNode* x) {
+        ItemNode* y = x->right;
+        x->right = y->left;
+        if (y->left != NIL) y->left->parent = x;
+
+        y->parent = x->parent;
+        if (x->parent == NIL) root = y;
+        else if (x == x->parent->left) x->parent->left = y;
+        else x->parent->right = y;
+
+        y->left = x;
+        x->parent = y;
+    }
+
+    void rightRotate(ItemNode* y) {
+        ItemNode* x = y->left;
+        y->left = x->right;
+        if (x->right != NIL) x->right->parent = y;
+
+        x->parent = y->parent;
+        if (y->parent == NIL) root = x;
+        else if (y == y->parent->left) y->parent->left = x;
+        else y->parent->right = x;
+
+        x->right = y;
+        y->parent = x;
+    }
+
+    void fixInsert(ItemNode* z) {
+        while (z->parent->color == Color::RED) {
+            if (z->parent == z->parent->parent->left) {
+                ItemNode* y = z->parent->parent->right;
+                if (y->color == Color::RED) {
+                    z->parent->color = Color::BLACK;
+                    y->color = Color::BLACK;
+                    z->parent->parent->color = Color::RED;
+                    z = z->parent->parent;
+                } else {
+                    if (z == z->parent->right) {
+                        z = z->parent;
+                        leftRotate(z);
+                    }
+                    z->parent->color = Color::BLACK;
+                    z->parent->parent->color = Color::RED;
+                    rightRotate(z->parent->parent);
+                }
+            } else {
+                ItemNode* y = z->parent->parent->left;
+                if (y->color == Color::RED) {
+                    z->parent->color = Color::BLACK;
+                    y->color = Color::BLACK;
+                    z->parent->parent->color = Color::RED;
+                    z = z->parent->parent;
+                } else {
+                    if (z == z->parent->left) {
+                        z = z->parent;
+                        rightRotate(z);
+                    }
+                    z->parent->color = Color::BLACK;
+                    z->parent->parent->color = Color::RED;
+                    leftRotate(z->parent->parent);
+                }
+            }
+        }
+        root->color = Color::BLACK;
+    }
+
+    void transplant(ItemNode* u, ItemNode* v) {
+        if (u->parent == NIL) root = v;
+        else if (u == u->parent->left) u->parent->left = v;
+        else u->parent->right = v;
+        v->parent = u->parent;
+    }
+
+    ItemNode* treeMinimum(ItemNode* x) {
+        while (x->left != NIL)
+            x = x->left;
+        return x;
+    }
+
+    void fixDelete(ItemNode* x) {
+        while (x != root && x->color == Color::BLACK) {
+            if (x == x->parent->left) {
+                ItemNode* w = x->parent->right;
+                if (w->color == Color::RED) {
+                    w->color = Color::BLACK;
+                    x->parent->color = Color::RED;
+                    leftRotate(x->parent);
+                    w = x->parent->right;
+                }
+                if (w->left->color == Color::BLACK &&
+                    w->right->color == Color::BLACK) {
+                    w->color = Color::RED;
+                    x = x->parent;
+                } else {
+                    if (w->right->color == Color::BLACK) {
+                        w->left->color = Color::BLACK;
+                        w->color = Color::RED;
+                        rightRotate(w);
+                        w = x->parent->right;
+                    }
+                    w->color = x->parent->color;
+                    x->parent->color = Color::BLACK;
+                    w->right->color = Color::BLACK;
+                    leftRotate(x->parent);
+                    x = root;
+                }
+            } else {
+                ItemNode* w = x->parent->left;
+                if (w->color == Color::RED) {
+                    w->color = Color::BLACK;
+                    x->parent->color = Color::RED;
+                    rightRotate(x->parent);
+                    w = x->parent->left;
+                }
+                if (w->right->color == Color::BLACK &&
+                    w->left->color == Color::BLACK) {
+                    w->color = Color::RED;
+                    x = x->parent;
+                } else {
+                    if (w->left->color == Color::BLACK) {
+                        w->right->color = Color::BLACK;
+                        w->color = Color::RED;
+                        leftRotate(w);
+                        w = x->parent->left;
+                    }
+                    w->color = x->parent->color;
+                    x->parent->color = Color::BLACK;
+                    w->left->color = Color::BLACK;
+                    rightRotate(x->parent);
+                    x = root;
+                }
+            }
+        }
+        x->color = Color::BLACK;
+    }
+
+    ItemNode* findNodeByID_ON(int itemID) {
+        vector<ItemNode*> stack;
+        if (root != NIL) stack.push_back(root);
+
+        while (!stack.empty()) {
+            ItemNode* cur = stack.back();
+            stack.pop_back();
+
+            if (cur->itemID == itemID)
+                return cur;
+
+            if (cur->right != NIL) stack.push_back(cur->right);
+            if (cur->left != NIL) stack.push_back(cur->left);
+        }
+        return NIL;
+    }
 
 public:
     ConcreteAuctionTree() {
-        // TODO: Initialize your Red-Black Tree
+        NIL = new ItemNode();
+        NIL->left = NIL;
+        NIL->right = NIL;
+        NIL->parent = NIL;
+        NIL->color = Color::BLACK;
+        root = NIL;
+    }
+
+    ~ConcreteAuctionTree() {
+        vector<ItemNode*> stack;
+        if (root != NIL) stack.push_back(root);
+        while (!stack.empty()) {
+            ItemNode* cur = stack.back();
+            stack.pop_back();
+            if (cur->left != NIL) stack.push_back(cur->left);
+            if (cur->right != NIL) stack.push_back(cur->right);
+            delete cur;
+        }
+        delete NIL;
     }
 
     void insertItem(int itemID, int price) override {
-        // TODO: Implement Red-Black Tree insertion
-        // Remember to maintain RB-Tree properties with rotations and recoloring
+        ItemNode* z = new ItemNode(itemID, price, Color::RED);
+        z->left = z->right = z->parent = NIL;
+
+        ItemNode* y = NIL;
+        ItemNode* x = root;
+
+        while (x != NIL) {
+            y = x;
+            if (lessThan(z->price, z->itemID, x->price, x->itemID))
+                x = x->left;
+            else
+                x = x->right;
+        }
+
+        z->parent = y;
+        if (y == NIL) root = z;
+        else if (lessThan(z->price, z->itemID, y->price, y->itemID))
+            y->left = z;
+        else
+            y->right = z;
+
+        fixInsert(z);
     }
 
     void deleteItem(int itemID) override {
-        // TODO: Implement Red-Black Tree deletion
-        // This is complex - handle all cases carefully
+        ItemNode* z = findNodeByID_ON(itemID);
+        if (z == NIL) return;
+
+        ItemNode* y = z;
+        ItemNode* x;
+        Color yColor = y->color;
+
+        if (z->left == NIL) {
+            x = z->right;
+            transplant(z, z->right);
+        } else if (z->right == NIL) {
+            x = z->left;
+            transplant(z, z->left);
+        } else {
+            y = treeMinimum(z->right);
+            yColor = y->color;
+            x = y->right;
+
+            if (y->parent == z)
+                x->parent = y;
+            else {
+                transplant(y, y->right);
+                y->right = z->right;
+                y->right->parent = y;
+            }
+
+            transplant(z, y);
+            y->left = z->left;
+            y->left->parent = y;
+            y->color = z->color;
+        }
+
+        delete z;
+
+        if (yColor == Color::BLACK)
+            fixDelete(x);
     }
 };
 
