@@ -24,14 +24,14 @@ using namespace std;
 // =========================================================
 
 struct PlayerData {
-  int PlayerID;
-  string Name;
+    int PlayerID;
+    string Name;
 };
 
 enum class SlotState {
-  Empty,
-  Occupied,
-  Deleted
+    Empty,
+    Occupied,
+    Deleted
 };
 
 const int TableSize = 101;
@@ -42,13 +42,13 @@ const double A = 0.6180339887;
 
 class ConcretePlayerTable : public PlayerTable {
 private:
-    vector<optional<PlayerData>> table;
+    vector<optional<PlayerData> > table;
     vector<SlotState> state;
 
     int H1(int key) const {
         double frac = key * A;
         frac = frac - floor(frac);
-        return (int)(frac * TableSize);
+        return (int) (frac * TableSize);
     }
 
     int H2(int key) const {
@@ -108,19 +108,20 @@ const int MaxLevel = 16;
 const double P = 0.5;
 
 struct ScoreNode {
-  int PlayerID;
-  int score;
-  vector<ScoreNode*> forward;
-  ScoreNode(int id, int scr, int level) : PlayerID(id), score(scr) {
-    forward.resize(level + 1, nullptr);
-  }
+    int PlayerID;
+    int score;
+    vector<ScoreNode *> forward;
+
+    ScoreNode(int id, int scr, int level) : PlayerID(id), score(scr) {
+        forward.resize(level + 1, nullptr);
+    }
 };
 
 // --- 2. Leaderboard (Skip List) ---
 
 class ConcreteLeaderboard : public Leaderboard {
 private:
-    ScoreNode* head;
+    ScoreNode *head;
     int currentLevel;
     default_random_engine gen;
 
@@ -146,9 +147,9 @@ public:
     }
 
     ~ConcreteLeaderboard() {
-        ScoreNode* cur = head->forward[0];
+        ScoreNode *cur = head->forward[0];
         while (cur) {
-            ScoreNode* nxt = cur->forward[0];
+            ScoreNode *nxt = cur->forward[0];
             delete cur;
             cur = nxt;
         }
@@ -156,8 +157,8 @@ public:
     }
 
     void addScore(int playerID, int score) override {
-        vector<ScoreNode*> update(MaxLevel + 1);
-        ScoreNode* cur = head;
+        vector<ScoreNode *> update(MaxLevel + 1);
+        ScoreNode *cur = head;
 
         for (int i = currentLevel; i >= 0; i--) {
             while (cur->forward[i] &&
@@ -176,7 +177,7 @@ public:
             currentLevel = lvl;
         }
 
-        ScoreNode* node = new ScoreNode(playerID, score, lvl);
+        ScoreNode *node = new ScoreNode(playerID, score, lvl);
         for (int i = 0; i <= lvl; i++) {
             node->forward[i] = update[i]->forward[i];
             update[i]->forward[i] = node;
@@ -185,7 +186,7 @@ public:
 
     void removePlayer(int playerID) override {
         // Allowed O(N) scan
-        ScoreNode* cur = head->forward[0];
+        ScoreNode *cur = head->forward[0];
         int score = -1;
 
         while (cur) {
@@ -199,7 +200,7 @@ public:
         if (score == -1)
             return;
 
-        vector<ScoreNode*> update(MaxLevel + 1);
+        vector<ScoreNode *> update(MaxLevel + 1);
         cur = head;
 
         for (int i = currentLevel; i >= 0; i--) {
@@ -212,7 +213,7 @@ public:
             update[i] = cur;
         }
 
-        ScoreNode* target = cur->forward[0];
+        ScoreNode *target = cur->forward[0];
         if (!target || target->PlayerID != playerID)
             return;
 
@@ -229,7 +230,7 @@ public:
 
     vector<int> getTopN(int n) override {
         vector<int> result;
-        ScoreNode* cur = head->forward[0];
+        ScoreNode *cur = head->forward[0];
 
         while (cur && n--) {
             result.push_back(cur->PlayerID);
@@ -242,8 +243,8 @@ public:
 // --- 3. AuctionTree (Red-Black Tree) ---
 
 enum class Color {
-  RED,
-  BLACK
+    RED,
+    BLACK
 };
 
 struct ItemNode {
@@ -254,21 +255,22 @@ struct ItemNode {
 
     ItemNode(int id = -1, int p = 0, Color c = Color::BLACK)
         : itemID(id), price(p), color(c),
-          left(nullptr), right(nullptr), parent(nullptr) {}
+          left(nullptr), right(nullptr), parent(nullptr) {
+    }
 };
 
 class ConcreteAuctionTree : public AuctionTree {
 private:
-    ItemNode* root;
-    ItemNode* NIL;
+    ItemNode *root;
+    ItemNode *NIL;
 
     bool lessThan(int price1, int id1, int price2, int id2) const {
         if (price1 != price2) return price1 < price2;
         return id1 < id2;
     }
 
-    void leftRotate(ItemNode* x) {
-        ItemNode* y = x->right;
+    void leftRotate(ItemNode *x) {
+        ItemNode *y = x->right;
         x->right = y->left;
         if (y->left != NIL) y->left->parent = x;
 
@@ -281,8 +283,8 @@ private:
         x->parent = y;
     }
 
-    void rightRotate(ItemNode* y) {
-        ItemNode* x = y->left;
+    void rightRotate(ItemNode *y) {
+        ItemNode *x = y->left;
         y->left = x->right;
         if (x->right != NIL) x->right->parent = y;
 
@@ -295,10 +297,10 @@ private:
         y->parent = x;
     }
 
-    void fixInsert(ItemNode* z) {
+    void fixInsert(ItemNode *z) {
         while (z->parent->color == Color::RED) {
             if (z->parent == z->parent->parent->left) {
-                ItemNode* y = z->parent->parent->right;
+                ItemNode *y = z->parent->parent->right;
                 if (y->color == Color::RED) {
                     z->parent->color = Color::BLACK;
                     y->color = Color::BLACK;
@@ -314,7 +316,7 @@ private:
                     rightRotate(z->parent->parent);
                 }
             } else {
-                ItemNode* y = z->parent->parent->left;
+                ItemNode *y = z->parent->parent->left;
                 if (y->color == Color::RED) {
                     z->parent->color = Color::BLACK;
                     y->color = Color::BLACK;
@@ -334,23 +336,23 @@ private:
         root->color = Color::BLACK;
     }
 
-    void transplant(ItemNode* u, ItemNode* v) {
+    void transplant(ItemNode *u, ItemNode *v) {
         if (u->parent == NIL) root = v;
         else if (u == u->parent->left) u->parent->left = v;
         else u->parent->right = v;
         v->parent = u->parent;
     }
 
-    ItemNode* treeMinimum(ItemNode* x) {
+    ItemNode *treeMinimum(ItemNode *x) {
         while (x->left != NIL)
             x = x->left;
         return x;
     }
 
-    void fixDelete(ItemNode* x) {
+    void fixDelete(ItemNode *x) {
         while (x != root && x->color == Color::BLACK) {
             if (x == x->parent->left) {
-                ItemNode* w = x->parent->right;
+                ItemNode *w = x->parent->right;
                 if (w->color == Color::RED) {
                     w->color = Color::BLACK;
                     x->parent->color = Color::RED;
@@ -375,7 +377,7 @@ private:
                     x = root;
                 }
             } else {
-                ItemNode* w = x->parent->left;
+                ItemNode *w = x->parent->left;
                 if (w->color == Color::RED) {
                     w->color = Color::BLACK;
                     x->parent->color = Color::RED;
@@ -404,12 +406,12 @@ private:
         x->color = Color::BLACK;
     }
 
-    ItemNode* findNodeByID_ON(int itemID) {
-        vector<ItemNode*> stack;
+    ItemNode *findNodeByID_ON(int itemID) {
+        vector<ItemNode *> stack;
         if (root != NIL) stack.push_back(root);
 
         while (!stack.empty()) {
-            ItemNode* cur = stack.back();
+            ItemNode *cur = stack.back();
             stack.pop_back();
 
             if (cur->itemID == itemID)
@@ -432,10 +434,10 @@ public:
     }
 
     ~ConcreteAuctionTree() {
-        vector<ItemNode*> stack;
+        vector<ItemNode *> stack;
         if (root != NIL) stack.push_back(root);
         while (!stack.empty()) {
-            ItemNode* cur = stack.back();
+            ItemNode *cur = stack.back();
             stack.pop_back();
             if (cur->left != NIL) stack.push_back(cur->left);
             if (cur->right != NIL) stack.push_back(cur->right);
@@ -445,11 +447,11 @@ public:
     }
 
     void insertItem(int itemID, int price) override {
-        ItemNode* z = new ItemNode(itemID, price, Color::RED);
+        ItemNode *z = new ItemNode(itemID, price, Color::RED);
         z->left = z->right = z->parent = NIL;
 
-        ItemNode* y = NIL;
-        ItemNode* x = root;
+        ItemNode *y = NIL;
+        ItemNode *x = root;
 
         while (x != NIL) {
             y = x;
@@ -470,11 +472,11 @@ public:
     }
 
     void deleteItem(int itemID) override {
-        ItemNode* z = findNodeByID_ON(itemID);
+        ItemNode *z = findNodeByID_ON(itemID);
         if (z == NIL) return;
 
-        ItemNode* y = z;
-        ItemNode* x;
+        ItemNode *y = z;
+        ItemNode *x;
         Color yColor = y->color;
 
         if (z->left == NIL) {
@@ -514,8 +516,7 @@ public:
 // =========================================================
 
 
-
-int InventorySystem::optimizeLootSplit(int n, vector<int>& coins) {
+int InventorySystem::optimizeLootSplit(int n, vector<int> &coins) {
     if (n == 0) {
         return 0;
     }
@@ -531,8 +532,7 @@ int InventorySystem::optimizeLootSplit(int n, vector<int>& coins) {
     dp[0] = true;
 
 
-    for (int coin : coins) {
-
+    for (int coin: coins) {
         for (int j = targetSum; j >= coin; --j) {
             dp[j] = dp[j] || dp[j - coin];
         }
@@ -553,7 +553,7 @@ int InventorySystem::optimizeLootSplit(int n, vector<int>& coins) {
     return sum2 - sum1;
 }
 
-int InventorySystem::maximizeCarryValue(int capacity, vector<pair<int, int>>& items) {
+int InventorySystem::maximizeCarryValue(int capacity, vector<pair<int, int> > &items) {
     if (capacity == 0 || items.empty()) {
         return 0;
     }
@@ -561,13 +561,12 @@ int InventorySystem::maximizeCarryValue(int capacity, vector<pair<int, int>>& it
 
     vector<int> dp(capacity + 1, 0);
 
-    for (const auto& item : items) {
+    for (const auto &item: items) {
         int weight = item.first;
         int value = item.second;
 
 
         for (int w = capacity; w >= weight; --w) {
-
             int value_exclude = dp[w];
 
 
@@ -599,24 +598,18 @@ long long InventorySystem::countStringPossibilities(string s) {
 
 
     for (int i = 1; i <= N; ++i) {
-
-        dp[i] = dp[i-1];
+        dp[i] = dp[i - 1];
 
 
         if (i >= 2) {
-
-            char c1 = s[i-2];
-            char c2 = s[i-1];
+            char c1 = s[i - 2];
+            char c2 = s[i - 1];
 
 
             if (c1 == 'u' && c2 == 'u') {
-
-                dp[i] = (dp[i] + dp[i-2]) % MOD;
-            }
-
-            else if (c1 == 'n' && c2 == 'n') {
-
-                dp[i] = (dp[i] + dp[i-2]) % MOD;
+                dp[i] = (dp[i] + dp[i - 2]) % MOD;
+            } else if (c1 == 'n' && c2 == 'n') {
+                dp[i] = (dp[i] + dp[i - 2]) % MOD;
             }
         }
 
@@ -630,18 +623,18 @@ long long InventorySystem::countStringPossibilities(string s) {
 // PART C: WORLD NAVIGATOR (Graphs)
 // =========================================================
 
-bool WorldNavigator::pathExists(int n, vector<vector<int>>& edges, int source, int dest) {
+bool WorldNavigator::pathExists(int n, vector<vector<int> > &edges, int source, int dest) {
     //if source equals destination
     if (source == dest) return true;
 
     // Step 1: Create and fill adjacency matrix (n x n)
-    vector<vector<int>> matrix(n, vector<int>(n, 0));
+    vector<vector<int> > matrix(n, vector<int>(n, 0));
 
-    for (const auto& edge : edges) {
+    for (const auto &edge: edges) {
         int u = edge[0];
         int v = edge[1];
         matrix[u][v] = 1;
-        matrix[v][u] = 1;  // Bidirectional
+        matrix[v][u] = 1; // Bidirectional
     }
 
     // Step 2: BFS to check connectivity
@@ -673,12 +666,12 @@ bool WorldNavigator::pathExists(int n, vector<vector<int>>& edges, int source, i
 }
 
 long long WorldNavigator::minBribeCost(int n, int m, long long goldRate, long long silverRate,
-                                       vector<vector<int>>& roadData) {
+                                       vector<vector<int> > &roadData) {
     // Convert costs to Tugriks
-    vector<vector<long long>> edges(m, vector<long long>(3));
+    vector<vector<long long> > edges(m, vector<long long>(3));
     for (int i = 0; i < m; i++) {
-        edges[i][0] = roadData[i][0];  // u
-        edges[i][1] = roadData[i][1];  // v
+        edges[i][0] = roadData[i][0]; // u
+        edges[i][1] = roadData[i][1]; // v
         edges[i][2] = roadData[i][2] * goldRate + roadData[i][3] * silverRate; // cost
     }
 
@@ -729,16 +722,16 @@ long long WorldNavigator::minBribeCost(int n, int m, long long goldRate, long lo
     return minCost;
 }
 
-string WorldNavigator::sumMinDistancesBinary(int n, vector<vector<int>>& roads) {
+string WorldNavigator::sumMinDistancesBinary(int n, vector<vector<int> > &roads) {
     const long long INF = 1e18;
     // 1. Initialize distance matrix
-    vector<vector<long long>> dist(n, vector<long long>(n, INF));
-    for(int i = 0; i < n; i++) {
+    vector<vector<long long> > dist(n, vector<long long>(n, INF));
+    for (int i = 0; i < n; i++) {
         dist[i][i] = 0;
     }
 
     // 2. Add  edges
-    for(auto& road : roads) {
+    for (auto &road: roads) {
         int u = road[0];
         int v = road[1];
         int w = road[2];
@@ -746,10 +739,10 @@ string WorldNavigator::sumMinDistancesBinary(int n, vector<vector<int>>& roads) 
     }
 
     // 3. Floyd-Warshall for all pairs shortest path
-    for(int k = 0; k < n; k++) {
-        for(int i = 0; i < n; i++) {
-            for(int j = 0; j < n; j++) {
-                if(dist[i][k] + dist[k][j] < dist[i][j]) {
+    for (int k = 0; k < n; k++) {
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (dist[i][k] + dist[k][j] < dist[i][j]) {
                     dist[i][j] = dist[i][k] + dist[k][j];
                 }
             }
@@ -758,19 +751,19 @@ string WorldNavigator::sumMinDistancesBinary(int n, vector<vector<int>>& roads) 
 
     // 4. Sum distances from smaller to larger index
     long long total = 0;
-    for(int i = 0; i < n; i++) {
-        for(int j = i + 1; j < n; j++) {
-            if(dist[i][j] < INF) {
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            if (dist[i][j] < INF) {
                 total += dist[i][j];
             }
         }
     }
 
     // 5. Convert total to binary string
-    if(total == 0) return "0";
+    if (total == 0) return "0";
 
     string binary = "";
-    while(total > 0) {
+    while (total > 0) {
         binary = to_string(total % 2) + binary;
         total /= 2;
     }
@@ -785,23 +778,26 @@ int ServerKernel::minIntervals(vector<char>& tasks, int n) {
     int freq[26] = {0};
 
     for(char t : tasks) {
-        if(t >= 'a' && t <= 'z') {
-            freq[t - 'a']++;
+        char upperT = toupper(t);
+
+        if(upperT >= 'A' && upperT <= 'Z') {
+            freq[upperT - 'A']++;
         }
     }
     int maxFreq = 0;
-    for(int f : freq)
+    for(int f : freq) {
         maxFreq = max(maxFreq, f);
-
+    }
     int countMax = 0;
-    for(int f : freq)
-        if(f == maxFreq)
+    for(int f : freq) {
+        if(f == maxFreq) {
             countMax++;
+        }
+    }
 
     int part1 = (maxFreq - 1) * (n + 1) + countMax;
 
     return max((int)tasks.size(), part1);
-
 }
 
 // =========================================================
@@ -809,15 +805,15 @@ int ServerKernel::minIntervals(vector<char>& tasks, int n) {
 // =========================================================
 
 extern "C" {
-    PlayerTable* createPlayerTable() {
-        return new ConcretePlayerTable();
-    }
+PlayerTable *createPlayerTable() {
+    return new ConcretePlayerTable();
+}
 
-    Leaderboard* createLeaderboard() {
-        return new ConcreteLeaderboard();
-    }
+Leaderboard *createLeaderboard() {
+    return new ConcreteLeaderboard();
+}
 
-    AuctionTree* createAuctionTree() {
-        return new ConcreteAuctionTree();
-    }
+AuctionTree *createAuctionTree() {
+    return new ConcreteAuctionTree();
+}
 }
