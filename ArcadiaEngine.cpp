@@ -81,7 +81,7 @@ public:
             }
         }
 
-        cout << "Error: Table is full\n";
+        cout << "Table is Full\n";
     }
 
     string search(int playerID) override {
